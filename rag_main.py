@@ -113,9 +113,6 @@ class RAGsys:
 
         base_index = faiss.IndexFlatIP(self.dimension)
 
-        # base_index.hnsw.efConstruction = 200
-        # base_index.hnsw.efSearch = 64
-
         self.index = faiss.IndexIDMap2(base_index)
         self.next_id = 0
 
@@ -254,10 +251,6 @@ class RAGsys:
         return pieces
 
     def _build_chunks(self, text):
-        
-        # ----------------------------------------------------
-        # Split paragraphs
-        # ----------------------------------------------------
 
         paragraphs = re.split(r"\n\s*\n",text)
 
@@ -266,10 +259,6 @@ class RAGsys:
             for paragraph in paragraphs
             if paragraph.strip()
         ]
-
-        # ----------------------------------------------------
-        # Convert paragraphs into manageable units
-        # ----------------------------------------------------
 
         units = []
 
@@ -293,10 +282,6 @@ class RAGsys:
                     large_parts
                 )
 
-        # ----------------------------------------------------
-        # Build chunks
-        # ----------------------------------------------------
-
         chunks = []
 
         current_units = []
@@ -307,10 +292,6 @@ class RAGsys:
             unit_tokens = (
                 self._token_count(unit)
             )
-
-            # --------------------------------------------
-            # Add unit to current chunk
-            # --------------------------------------------
 
             if (
                 current_units
@@ -327,10 +308,6 @@ class RAGsys:
                 chunks.append(
                     chunk_text
                 )
-
-                # ----------------------------------------
-                # Create overlap
-                # ----------------------------------------
 
                 overlap_units = []
                 overlap_count = 0
@@ -369,10 +346,6 @@ class RAGsys:
                     overlap_count
                 )
 
-            # --------------------------------------------
-            # Add current unit
-            # --------------------------------------------
-
             current_units.append(
                 unit
             )
@@ -380,10 +353,6 @@ class RAGsys:
             current_tokens += (
                 unit_tokens
             )
-
-        # ----------------------------------------------------
-        # Final chunk
-        # ----------------------------------------------------
 
         if current_units:
 
@@ -394,11 +363,6 @@ class RAGsys:
             )
 
         return chunks
-
-
-    # ============================================================
-    # FILE PROCESSING
-    # ============================================================
 
     def _process_file(self, file_path):
 
@@ -438,19 +402,11 @@ class RAGsys:
             file_path
         )
 
-        # ----------------------------------------------------
-        # Build text chunks
-        # ----------------------------------------------------
-
         chunk_texts = self._build_chunks(
             text
         )
 
         chunks = []
-
-        # ----------------------------------------------------
-        # Locate chunks in original document
-        # ----------------------------------------------------
 
         search_start = 0
 
@@ -461,21 +417,10 @@ class RAGsys:
             if not chunk_text.strip():
                 continue
 
-            # ------------------------------------------------
-            # Try to locate exact text
-            # ------------------------------------------------
-
             start_pos = text.find(
                 chunk_text,
                 search_start
             )
-
-            # ------------------------------------------------
-            # Overlap means exact text may not be found
-            # because chunks contain joined paragraph text.
-            #
-            # If not found, use a sequential position.
-            # ------------------------------------------------
 
             if start_pos == -1:
 
@@ -505,11 +450,6 @@ class RAGsys:
         )
 
         return chunks
-
-
-    # ============================================================
-    # ADD TO FAISS
-    # ============================================================
 
     def _add_to_faiss(self, chunks):
         """
@@ -556,11 +496,6 @@ class RAGsys:
 
         return ids.tolist()
 
-
-    # ============================================================
-    # REMOVE FILE FROM INDEX
-    # ============================================================
-
     def _remove_file_from_index(self, file_path):
         """
         Remove all chunks belonging to a file from:
@@ -592,10 +527,6 @@ class RAGsys:
             dtype=np.int64
         )
 
-        # ----------------------------------------------------
-        # Remove from FAISS
-        # ----------------------------------------------------
-
         try:
 
             if self.index is not None:
@@ -611,10 +542,6 @@ class RAGsys:
                 f"vectors for {file_path}: {e}"
             )
 
-        # ----------------------------------------------------
-        # Remove SQLite metadata
-        # ----------------------------------------------------
-
         cursor.execute(
             """
             DELETE FROM chunks
@@ -629,11 +556,6 @@ class RAGsys:
             f"Removed {len(faiss_ids)} old chunks "
             f"for {os.path.basename(file_path)}"
         )
-
-
-    # ============================================================
-    # INDEX ONE FILE
-    # ============================================================
 
     def _index_file(self, file_path):
         """
@@ -665,10 +587,6 @@ class RAGsys:
 
                 return
 
-            # ------------------------------------------------
-            # Check existing file
-            # ------------------------------------------------
-
             cursor = self.conn.cursor()
 
             existing = cursor.execute(
@@ -679,10 +597,6 @@ class RAGsys:
                 """,
                 (file_path,)
             ).fetchall()
-
-            # ------------------------------------------------
-            # Existing and unchanged
-            # ------------------------------------------------
 
             if existing:
 
@@ -697,10 +611,6 @@ class RAGsys:
 
                     return
 
-                # ------------------------------------------------
-                # File changed
-                # ------------------------------------------------
-
                 logger.info(
                     f"File changed: "
                     f"{os.path.basename(file_path)}"
@@ -709,10 +619,6 @@ class RAGsys:
                 self._remove_file_from_index(
                     file_path
                 )
-
-            # ------------------------------------------------
-            # Process file
-            # ------------------------------------------------
 
             chunks = self._process_file(
                 file_path
@@ -727,17 +633,9 @@ class RAGsys:
 
                 return
 
-            # ------------------------------------------------
-            # Add vectors
-            # ------------------------------------------------
-
             faiss_ids = self._add_to_faiss(
                 chunks
             )
-
-            # ------------------------------------------------
-            # Store metadata
-            # ------------------------------------------------
 
             for chunk, faiss_id in zip(
                 chunks,
@@ -782,11 +680,6 @@ class RAGsys:
                 f"({len(chunks)} chunks)"
             )
 
-
-    # ============================================================
-    # INDEX ALL
-    # ============================================================
-
     def _index_all(self):
         """
         Index all current documents.
@@ -797,10 +690,6 @@ class RAGsys:
         )
 
         current_files = set()
-
-        # ----------------------------------------------------
-        # Find current files
-        # ----------------------------------------------------
 
         for root, _, files in os.walk(
             self.docs_dir
@@ -829,10 +718,6 @@ class RAGsys:
                     )
                 )
 
-        # ----------------------------------------------------
-        # Remove database entries for files that no longer exist
-        # ----------------------------------------------------
-
         db_files = self.conn.execute(
             """
             SELECT DISTINCT file_path
@@ -857,10 +742,6 @@ class RAGsys:
                     db_file
                 )
 
-        # ----------------------------------------------------
-        # Index current files
-        # ----------------------------------------------------
-
         for file_path in current_files:
 
             self._index_file(
@@ -880,11 +761,6 @@ class RAGsys:
             f"Indexing complete: "
             f"{count} chunks"
         )
-
-
-    # ============================================================
-    # SEARCH
-    # ============================================================
 
     def search(
         self,
@@ -921,10 +797,6 @@ class RAGsys:
 
                 return []
 
-            # ------------------------------------------------
-            # Query embedding
-            # ------------------------------------------------
-
             query_embedding = self.encoder.encode(
                 [query],
                 convert_to_numpy=True,
@@ -933,10 +805,6 @@ class RAGsys:
             ).astype(
                 "float32"
             )
-
-            # ------------------------------------------------
-            # Search more candidates
-            # ------------------------------------------------
 
             search_k = min(
                 max(
